@@ -101,11 +101,11 @@ def compute_class_weight(class_weight, *, classes, y, sample_weight=None):
         # user-defined dictionary
         weight = xp.ones(size(classes), device=device_)
         unweighted_classes = []
-        for i, c in enumerate(classes):
-            try:
-                c = int(c)
-            except ValueError:  # `classes` contains strings
-                c = str(c)
+        # Compare native Python scalars so lookups match the user's dict keys exactly.
+        # A blanket int() coercion truncates float labels and turns numeric-string
+        # labels ("0") into ints, silently dropping their intended weight; tolist()
+        # keeps int, float, and str labels intact while normalizing array-API scalars.
+        for i, c in enumerate(move_to(classes, xp=np, device="cpu").tolist()):
             if c in class_weight:
                 weight[i] = class_weight[c]
             else:

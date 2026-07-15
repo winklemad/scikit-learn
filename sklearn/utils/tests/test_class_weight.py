@@ -91,6 +91,36 @@ def test_compute_class_weight_dict():
     assert_allclose([4.0, 2.0, 3.0], cw)
 
 
+@pytest.mark.parametrize(
+    "classes, class_weight, expected",
+    [
+        # Numeric-string labels must not be coerced to ints for the dict lookup.
+        (np.array(["0", "1", "2"]), {"0": 1.0, "1": 2.0, "2": 3.0}, [1.0, 2.0, 3.0]),
+        # Non-numeric string labels keep working.
+        (np.array(["a", "b"]), {"a": 2.0, "b": 3.0}, [2.0, 3.0]),
+        # Float labels must not be truncated (int(0.5) == 0) before the lookup.
+        (np.array([0.5, 1.5]), {0.5: 2.0, 1.5: 3.0}, [2.0, 3.0]),
+        # Integer labels keep working.
+        (np.arange(3), {0: 1.0, 1: 2.0, 2: 3.0}, [1.0, 2.0, 3.0]),
+    ],
+)
+def test_compute_class_weight_dict_non_integer_labels(classes, class_weight, expected):
+    """A user ``class_weight`` dict is keyed by the exact label, not a coerced one.
+
+    Non-regression: ``compute_class_weight`` used to run ``int(label)`` before the dict
+    lookup, which truncated float labels and turned numeric-string labels ("0") into
+    ints. Their intended weights were then dropped and a spurious "not in class_weight"
+    error was raised for otherwise valid input.
+    """
+    y = np.repeat(classes, 2)
+    cw = compute_class_weight(class_weight, classes=classes, y=y)
+    assert_allclose(cw, expected)
+
+    # The same labels flow through compute_sample_weight, so it must recover too.
+    sample_weight = compute_sample_weight(class_weight, y)
+    assert_allclose(sample_weight, np.repeat(expected, 2))
+
+
 def test_compute_class_weight_invariance():
     # Test that results with class_weight="balanced" is invariant wrt
     # class imbalance if the number of samples is identical.
